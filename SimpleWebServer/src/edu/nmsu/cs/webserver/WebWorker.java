@@ -21,18 +21,13 @@ package edu.nmsu.cs.webserver;
  *
  **/
 
-import java.io.BufferedReader;
-
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.File;
+import java.io.*;
 import java.net.Socket;
 import java.text.DateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.Scanner;
-import java.io.FileNotFoundException;
+
 
 public class WebWorker implements Runnable
 {
@@ -71,8 +66,33 @@ public class WebWorker implements Runnable
 				file = new File( fileName.substring( 1, fileName.length() ) );
 			}
 			
-			writeHTTPHeader(os, "text/html", file, fileName);
-			writeContent( os, file, fileName );
+			//getting the content type from the file name
+			String contentType = fileName.substring( fileName.indexOf( '.' ) + 1 );
+			
+			//going through the different possible content types and making it the appropriate MIME
+			if( !fileName.equals( "/" ) && !file.exists() )
+			{
+				contentType = "text/html";
+			} //end if
+			else if( contentType.equals( "gif" ) )
+			{
+				contentType = "image/gif";
+			} //end else if
+			else if( contentType.equals( "jpeg" ) || contentType.equals( "jpg" ) )
+			{
+				contentType = "image/jpeg";
+			} //end else if
+			else if( contentType.equals( "png" ) )
+			{
+				contentType = "image/png";
+			} //end else if
+			else
+			{
+				contentType = "text/html";
+			} //end else
+			
+			writeHTTPHeader(os, contentType, file, fileName);
+			writeContent( os, file, fileName, contentType );
 			os.flush();
 			socket.close();
 		}
@@ -166,49 +186,80 @@ public class WebWorker implements Runnable
 	 * @param os
 	 *          is the OutputStream object to write to
 	 **/
-	private void writeContent(OutputStream os, File file, String fileName ) throws Exception
+	private void writeContent(OutputStream os, File file, String fileName, String contentType ) throws Exception
 	{
-		//instantiates a date object and sets the timezone and formate
-		//borrowed from writeHTTPHeader
-		Date d = new Date();
-		DateFormat df = DateFormat.getDateInstance();
-		df.setTimeZone( TimeZone.getTimeZone( "MST" ) );
-		
-		String date = df.format( d );
-		
-		//if the file is the home page
-		if( fileName.equals( "/" ) )
+		//basically checks to see if it is a html file or an image
+		if( contentType.equals( "text/html" ) )
 		{
-			//then output home page info
-			os.write("<html><head></head><body>\n".getBytes());
-			os.write("<h3>My web server works!</h3>\n".getBytes());
-			os.write("</body></html>\n".getBytes());
-		}
-		//if the file is a different directory that we know where to find
-		else if( file.exists() )
-		{
-			//then make a new scanner object with that file
-			Scanner reader = new Scanner( file );
+			//instantiates a date object and sets the timezone and formate
+			//borrowed from writeHTTPHeader
+			Date d = new Date();
+			DateFormat df = DateFormat.getDateInstance();
+			df.setTimeZone( TimeZone.getTimeZone( "MST" ) );
 			
-			//while there is a new line
-			while( reader.hasNextLine() )
+			String date = df.format( d );
+			
+			//if the file is the home page
+			if( fileName.equals( "/" ) )
 			{
-				//read the line and output it but replace the tags with proper info
-				String data = reader.nextLine();
-				data = data.replaceAll( "<cs371server>", "Thomas' Server" );
-				data = data.replaceAll( "<cs371date>", date );
-				os.write( data.getBytes() );
-			}
-			
-			//close the scanner
-			reader.close();
+				//then output home page info
+				os.write("<html><head></head><body>\n".getBytes());
+				os.write("<h3>My web server works!</h3>\n".getBytes());
+				os.write("</body></html>\n".getBytes());
+			} //end if
+			//if the file is a different directory that we know where to find
+			else if( file.exists() )
+			{
+				//then make a new scanner object with that file
+				Scanner reader = new Scanner( file );
+				
+				//while there is a new line
+				while( reader.hasNextLine() )
+				{
+					//read the line and output it but replace the tags with proper info
+					String data = reader.nextLine();
+					data = data.replaceAll( "<cs371server>", "Thomas' Server" );
+					data = data.replaceAll( "<cs371date>", date );
+					os.write( data.getBytes() );
+				} //end while
+				
+				//close the scanner
+				reader.close();
+			} //end else if
+			//if its not the home directory or not a file in a directory, then its an error
+			else
+			{
+				os.write("<html><head></head><body>\n".getBytes());
+				os.write("<h3>404 Not Found</h3>\n".getBytes());
+				os.write("</body></html>\n".getBytes());
+			} //end else
 		}
-		//if its not the home directory or not a file in a directory, then its an error
 		else
 		{
-			os.write("<html><head></head><body>\n".getBytes());
-			os.write("<h3>404 Not Found</h3>\n".getBytes());
-			os.write("</body></html>\n".getBytes());
-		}
-	}
+			//making a buffered input stream because images must be handled in bytes and scanner wont do that
+			BufferedInputStream reader;
+			
+			try
+			{
+				//reads the image file till there is -1 (end of file) and writes it out
+				reader = new BufferedInputStream( new FileInputStream( file ) );
+				
+				//reading in the data 
+				int data = reader.read();
+				while( data != -1 )
+				{
+					//writing out the data
+					os.write( data );
+					data = reader.read();
+				} //end while
+				
+				//closing the buffered input stream
+				reader.close();
+			} //end try
+			catch( FileNotFoundException e )
+			{
+				e.printStackTrace();
+			} //end catch
+		} //end else
+	} //end writeContent
 } // end class
