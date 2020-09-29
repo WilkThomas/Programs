@@ -16,7 +16,7 @@
 	</target>
 
 	<target name="run" description="executes SimpleWebServer">
-		<java classpath="${build}" classname="edu.nmsu.cs.webserver.WebServer" fork="true">
+		<java classpath="${build}" classname="edu.nmsu.cs.webserver.WebServer" fork="true" dir="${basedir}/www">
 			<arg value="8080"/>
 		</java>
 	</target>
